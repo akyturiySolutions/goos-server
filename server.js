@@ -4,7 +4,16 @@ const cors           = require("cors");
 const cron           = require("node-cron");
 const admin          = require("firebase-admin");
 const nodemailer     = require("nodemailer");
-const AfricasTalking = require("africastalking");
+// Africa's Talking SMS is OPTIONAL. It's no longer a hard dependency since
+// you're using Till-based manual payments. If you want SMS back later,
+// run: npm install africastalking
+// and uncomment the require below.
+let AfricasTalking = null;
+try {
+  AfricasTalking = require("africastalking");
+} catch (e) {
+  console.log("[SMS] africastalking package not installed — SMS notifications disabled, email-only mode active");
+}
 
 // ─── FIREBASE ADMIN ───────────────────────────────────────────────────────────
 admin.initializeApp({
@@ -17,8 +26,11 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ─── AFRICA'S TALKING (SMS) ───────────────────────────────────────────────────
-const AT  = AfricasTalking({ apiKey: process.env.AT_API_KEY, username: process.env.AT_USERNAME });
-const sms = AT.SMS;
+let sms = null;
+if (AfricasTalking && process.env.AT_API_KEY && process.env.AT_USERNAME) {
+  const AT = AfricasTalking({ apiKey: process.env.AT_API_KEY, username: process.env.AT_USERNAME });
+  sms = AT.SMS;
+}
 
 // ─── NODEMAILER (EMAIL) ───────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
@@ -69,6 +81,7 @@ function formatPhone(phone, dialCode) {
 
 // ─── SEND SMS ─────────────────────────────────────────────────────────────────
 async function sendSMS(phone, dialCode, message) {
+  if (!sms) return { skipped: true, reason: "sms_not_configured" };
   const formatted = formatPhone(phone, dialCode);
   if (!formatted) return { skipped: true, reason: "no valid phone" };
   try {
