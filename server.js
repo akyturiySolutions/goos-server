@@ -291,6 +291,7 @@ app.get("/api/access/check", async (req, res) => {
     if (!clientId || !productKey) {
       return res.status(400).json({ error: "clientId and productKey are required" });
     }
+    console.log(`[ACCESS DEBUG] Starting check: clientId=${clientId}, productKey=${productKey}`);
 
     const cacheKey = `${clientId}__${productKey}`;
     const cached = accessCache.get(cacheKey);
@@ -303,13 +304,16 @@ app.get("/api/access/check", async (req, res) => {
     // Merkaz POS businessId) that was linked when the client was created.
     let resolvedClientId = clientId;
 
+    console.log("[ACCESS DEBUG] Step 1: checking direct client doc...");
     const directDoc = await db.collection("tenants").doc(TENANT_ID)
       .collection("clients").doc(clientId).get();
+    console.log("[ACCESS DEBUG] Step 1 done. exists:", directDoc.exists);
 
     if (!directDoc.exists) {
-      // Not a direct GO OS clientId — search by externalId field instead
+      console.log("[ACCESS DEBUG] Step 2: searching by externalId...");
       const byExternal = await db.collection("tenants").doc(TENANT_ID)
         .collection("clients").where("externalId", "==", clientId).limit(1).get();
+      console.log("[ACCESS DEBUG] Step 2 done. found:", !byExternal.empty);
       if (!byExternal.empty) {
         resolvedClientId = byExternal.docs[0].id;
       } else {
@@ -319,10 +323,10 @@ app.get("/api/access/check", async (req, res) => {
       }
     }
 
-    // Find the product by slug
-    // e.g. "merkaz-pos", "dalada-tracker" — must match exactly what's in Firestore)
+    console.log("[ACCESS DEBUG] Step 3: looking up product by slug...");
     const productsSnap = await db.collection("tenants").doc(TENANT_ID)
       .collection("products").where("slug", "==", productKey).get();
+    console.log("[ACCESS DEBUG] Step 3 done. found:", !productsSnap.empty);
 
     if (productsSnap.empty) {
       const data = { access: false, reason: "product_not_found" };
@@ -331,12 +335,13 @@ app.get("/api/access/check", async (req, res) => {
     }
     const productId = productsSnap.docs[0].id;
 
-    // Find active subscription for this client + product
+    console.log("[ACCESS DEBUG] Step 4: looking up subscriptions...");
     const subsSnap = await db.collection("tenants").doc(TENANT_ID)
       .collection("subscriptions")
       .where("clientId", "==", resolvedClientId)
       .where("productId", "==", productId)
       .get();
+    console.log("[ACCESS DEBUG] Step 4 done. found:", subsSnap.size);
 
     if (subsSnap.empty) {
       const data = { access: false, reason: "no_subscription" };
@@ -365,7 +370,8 @@ app.get("/api/access/check", async (req, res) => {
     res.json(data);
 
   } catch (err) {
-    console.error("[access check error]", err);
+    console.error("[access check error] code:", err.code, "| message:", err.message);
+    console.error("[access check error] full:", err);
     // Fail OPEN or CLOSED? For revenue protection, fail CLOSED (deny access)
     // on errors — but this means a server outage blocks all your clients.
     // Adjust based on your risk tolerance.
