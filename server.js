@@ -4,16 +4,6 @@ const cors           = require("cors");
 const cron           = require("node-cron");
 const admin          = require("firebase-admin");
 const nodemailer     = require("nodemailer");
-// Africa's Talking SMS is OPTIONAL. It's no longer a hard dependency since
-// you're using Till-based manual payments. If you want SMS back later,
-// run: npm install africastalking
-// and uncomment the require below.
-let AfricasTalking = null;
-try {
-  AfricasTalking = require("africastalking");
-} catch (e) {
-  console.log("[SMS] africastalking package not installed — SMS notifications disabled, email-only mode active");
-}
 
 // ─── FIREBASE ADMIN ───────────────────────────────────────────────────────────
 admin.initializeApp({
@@ -24,13 +14,6 @@ admin.initializeApp({
   }),
 });
 const db = admin.firestore();
-
-// ─── AFRICA'S TALKING (SMS) ───────────────────────────────────────────────────
-let sms = null;
-if (AfricasTalking && process.env.AT_API_KEY && process.env.AT_USERNAME) {
-  const AT = AfricasTalking({ apiKey: process.env.AT_API_KEY, username: process.env.AT_USERNAME });
-  sms = AT.SMS;
-}
 
 // ─── NODEMAILER (EMAIL) ───────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
@@ -79,18 +62,13 @@ function formatPhone(phone, dialCode) {
   return code + stripped;
 }
 
-// ─── SEND SMS ─────────────────────────────────────────────────────────────────
+// ─── SMS (DISABLED — using Till payments, no SMS provider configured) ───────
+// Kept as a stub so the notification log structure stays consistent
+// (still shows an "SMS" badge, just always skipped). Email is the active
+// notification channel. To re-enable SMS later, restore the Africa's
+// Talking integration here.
 async function sendSMS(phone, dialCode, message) {
-  if (!sms) return { skipped: true, reason: "sms_not_configured" };
-  const formatted = formatPhone(phone, dialCode);
-  if (!formatted) return { skipped: true, reason: "no valid phone" };
-  try {
-    const result    = await sms.send({ to: [formatted], message, from: process.env.AT_SENDER_ID || undefined });
-    const recipient = result.SMSMessageData?.Recipients?.[0];
-    return { success: recipient?.status === "Success", status: recipient?.status, cost: recipient?.cost, phone: formatted };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
+  return { skipped: true, reason: "sms_disabled" };
 }
 
 // ─── SEND EMAIL ───────────────────────────────────────────────────────────────
