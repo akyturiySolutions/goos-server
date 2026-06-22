@@ -5,6 +5,14 @@ const cron           = require("node-cron");
 const admin          = require("firebase-admin");
 const nodemailer     = require("nodemailer");
 
+// ─── DEBUG: Diagnose Firebase credential env vars (safe — no secrets logged) ──
+console.log("[DEBUG] FIREBASE_PROJECT_ID:", JSON.stringify(process.env.FIREBASE_PROJECT_ID));
+console.log("[DEBUG] FIREBASE_CLIENT_EMAIL:", JSON.stringify(process.env.FIREBASE_CLIENT_EMAIL));
+console.log("[DEBUG] FIREBASE_PRIVATE_KEY exists:", !!process.env.FIREBASE_PRIVATE_KEY);
+console.log("[DEBUG] FIREBASE_PRIVATE_KEY length:", process.env.FIREBASE_PRIVATE_KEY?.length);
+console.log("[DEBUG] FIREBASE_PRIVATE_KEY first 40 chars:", JSON.stringify(process.env.FIREBASE_PRIVATE_KEY?.slice(0, 40)));
+console.log("[DEBUG] FIREBASE_PRIVATE_KEY last 40 chars:", JSON.stringify(process.env.FIREBASE_PRIVATE_KEY?.slice(-40)));
+
 // ─── FIREBASE ADMIN ───────────────────────────────────────────────────────────
 admin.initializeApp({
   credential: admin.credential.cert({
